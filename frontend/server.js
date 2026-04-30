@@ -25,40 +25,72 @@ const MIME_TYPES = {
   ".webp": "image/webp",
 };
 
+process.on("uncaughtException", (err) => {
+  console.error("[uncaughtException]", err);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[unhandledRejection]", reason);
+});
+
 const server = http.createServer((req, res) => {
-  // Strip query string
-  const urlPath = req.url.split("?")[0];
-  let filePath = path.join(DIST_DIR, urlPath);
+  try {
+    // Strip query string
+    const urlPath = req.url.split("?")[0];
+    let filePath = path.join(DIST_DIR, urlPath);
 
-  // Prevent directory traversal outside dist/
-  if (!filePath.startsWith(DIST_DIR)) {
-    res.writeHead(403);
-    res.end("Forbidden");
-    return;
-  }
-
-  // If the path is a directory, look for index.html inside it
-  if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
-    filePath = path.join(filePath, "index.html");
-  }
-
-  // Serve the file if it exists, otherwise fall back to index.html (SPA routing)
-  if (!fs.existsSync(filePath)) {
-    filePath = path.join(DIST_DIR, "index.html");
-  }
-
-  const ext = path.extname(filePath).toLowerCase();
-  const contentType = MIME_TYPES[ext] || "application/octet-stream";
-
-  fs.readFile(filePath, (err, data) => {
-    if (err) {
-      res.writeHead(500);
-      res.end("Internal Server Error");
+    // Prevent directory traversal outside dist/
+    if (!filePath.startsWith(DIST_DIR)) {
+      res.writeHead(403);
+      res.end("Forbidden");
       return;
     }
-    res.writeHead(200, { "Content-Type": contentType });
-    res.end(data);
-  });
+
+    // If the path is a directory, look for index.html inside it
+    try {
+      if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
+        filePath = path.join(filePath, "index.html");
+      }
+    } catch (statErr) {
+      console.error(`[stat error] ${filePath}:`, statErr);
+    }
+
+    // Serve the file if it exists, otherwise fall back to index.html (SPA routing)
+    try {
+      if (!fs.existsSync(filePath)) {
+        filePath = path.join(DIST_DIR, "index.html");
+      }
+    } catch (existsErr) {
+      console.error(`[existsSync error] ${filePath}:`, existsErr);
+      filePath = path.join(DIST_DIR, "index.html");
+    }
+
+    const ext = path.extname(filePath).toLowerCase();
+    const contentType = MIME_TYPES[ext] || "application/octet-stream";
+
+    fs.readFile(filePath, (err, data) => {
+      if (err) {
+        console.error(`[readFile error] ${filePath}:`, err);
+        if (!res.headersSent) {
+          res.writeHead(500);
+          res.end("Internal Server Error");
+        }
+        return;
+      }
+      res.writeHead(200, { "Content-Type": contentType });
+      res.end(data);
+    });
+  } catch (err) {
+    console.error(`[request handler error] ${req.method} ${req.url}:`, err);
+    if (!res.headersSent) {
+      res.writeHead(500);
+      res.end("Internal Server Error");
+    }
+  }
+});
+
+server.on("error", (err) => {
+  console.error("[server error]", err);
 });
 
 server.listen(PORT, "0.0.0.0", () => {
