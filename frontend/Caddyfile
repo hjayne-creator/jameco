@@ -6,11 +6,10 @@
 		path /api/*
 	}
 
-@api path /api/*
-handle @api {
-	uri strip_prefix /api
-	reverse_proxy http://jameco-backend.railway.internal:8080
-}
+	handle @api {
+		uri strip_prefix /api
+		reverse_proxy http://jameco-backend.railway.internal:8080
+	}
 
 	try_files {path} /index.html
 }
