@@ -1,6 +1,10 @@
-:{$PORT:3000}
+:{$PORT:3000} {
+	root * dist
+	file_server
 
-root * dist
+	@api {
+		path /api/*
+	}
 
 @api path /api/*
 handle @api {
@@ -8,5 +12,5 @@ handle @api {
 	reverse_proxy http://jameco-backend.railway.internal:8080
 }
 
-try_files {path} /index.html
-file_server
+	try_files {path} /index.html
+}
