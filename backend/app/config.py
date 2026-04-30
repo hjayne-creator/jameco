@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import List
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,8 +26,8 @@ class Settings(BaseSettings):
     browserbase_project_id: str | None = None
 
     database_url: str = "sqlite:///./jameco.db"
-    app_host: str = "127.0.0.1"
-    app_port: int = 8000
+    app_host: str = Field(default="0.0.0.0", validation_alias=AliasChoices("APP_HOST", "HOST"))
+    app_port: int = Field(default=8000, validation_alias=AliasChoices("APP_PORT", "PORT"))
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     llm_reasoning_model: str = "claude-sonnet-4-6"

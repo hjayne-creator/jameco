@@ -106,7 +106,7 @@ In two terminals:
 # Terminal 1 — backend
 source .venv/bin/activate
 cd backend
-uvicorn app.main:app --reload --port 8000
+python -m app.run
 ```
 
 ```bash
@@ -117,6 +117,33 @@ npm run dev
 
 Open http://localhost:5173. The Vite dev server proxies `/api/*` to
 `http://127.0.0.1:8000`.
+
+## Deploy on Railway
+
+This repository includes `railway.json` so Railway starts the backend with:
+
+```bash
+cd backend && python -m app.run
+```
+
+The backend now auto-reads Railway's injected `PORT` (and optional `HOST`)
+while remaining compatible with local `.env` values (`APP_PORT` / `APP_HOST`).
+
+Recommended Railway setup:
+
+1. **Root directory**: project root (`JameCo`) so Railway can read
+   `railway.json`.
+2. **Required env vars**: same keys listed in Backend setup (LLM, SerpAPI,
+   FireCrawl, optional Browserbase), plus `DATABASE_URL` if not using local
+   SQLite.
+3. **CORS for hosted frontend**: set `CORS_ORIGINS` to include your frontend
+   Railway domain.
+
+Frontend compatibility:
+
+- Local dev keeps working with `/api` proxy.
+- For hosted frontend calling backend directly, set
+  `VITE_API_BASE=https://<your-backend-domain>` at build time.
 
 ## Tests
 
