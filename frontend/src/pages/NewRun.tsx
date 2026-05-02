@@ -5,7 +5,7 @@ import { api, StyleGuideSummary } from "../api/client";
 export function NewRun() {
   const navigate = useNavigate();
   const [url, setUrl] = useState("");
-  const [n, setN] = useState(5);
+  const [nText, setNText] = useState("5");
   const [guideId, setGuideId] = useState<number | null>(null);
   const [guides, setGuides] = useState<StyleGuideSummary[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -19,6 +19,8 @@ export function NewRun() {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
+    const parsedN = parseInt(nText.trim(), 10);
+    const n = Number.isFinite(parsedN) ? Math.min(20, Math.max(1, parsedN)) : 1;
     try {
       const res = await api.createRun({
         subject_url: url,
@@ -57,8 +59,8 @@ export function NewRun() {
           type="number"
           min={1}
           max={20}
-          value={n}
-          onChange={(e) => setN(parseInt(e.target.value, 10) || 1)}
+          value={nText}
+          onChange={(e) => setNText(e.target.value)}
         />
 
         <label htmlFor="guide">Style guide</label>

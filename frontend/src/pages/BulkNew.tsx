@@ -2,13 +2,30 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, StyleGuideSummary } from "../api/client";
 
+const MIN_COMPETITOR_CONFIDENCE_HELP =
+  "Search results are scored 0–1 for how well they match your product (brand, MPN, title/snippet signals). " +
+  "Only candidates at or above this threshold can be chosen as competitor PDPs (up to your discovery cap, after the domain blocklist). " +
+  "Higher = stricter, fewer weak matches; lower = more permissive.";
+
+function FieldHelpIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width={12} height={12} fill="currentColor" aria-hidden>
+      <path
+        fillRule="evenodd"
+        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
 export function BulkNew() {
   const navigate = useNavigate();
   const [batchName, setBatchName] = useState("");
   const [urlsText, setUrlsText] = useState("");
-  const [n, setN] = useState(5);
+  const [nText, setNText] = useState("3");
   const [minConf, setMinConf] = useState(0.35);
-  const [minDomains, setMinDomains] = useState(2);
+  const [minDomainsText, setMinDomainsText] = useState("2");
   const [blockText, setBlockText] = useState("");
   const [guideId, setGuideId] = useState<number | null>(null);
   const [guides, setGuides] = useState<StyleGuideSummary[]>([]);
@@ -23,6 +40,10 @@ export function BulkNew() {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
+    const parsedN = parseInt(nText.trim(), 10);
+    const n = Number.isFinite(parsedN) ? Math.min(20, Math.max(1, parsedN)) : 1;
+    const parsedMinDomains = parseInt(minDomainsText.trim(), 10);
+    const minDomains = Number.isFinite(parsedMinDomains) ? Math.min(20, Math.max(1, parsedMinDomains)) : 1;
     const urls = urlsText
       .split(/\r?\n/)
       .map((s) => s.trim())
@@ -86,11 +107,22 @@ export function BulkNew() {
           type="number"
           min={1}
           max={20}
-          value={n}
-          onChange={(e) => setN(parseInt(e.target.value, 10) || 1)}
+          value={nText}
+          onChange={(e) => setNText(e.target.value)}
         />
 
-        <label htmlFor="minc">Minimum competitor confidence (0–1)</label>
+        <label htmlFor="minc" style={{ display: "flex", alignItems: "center", gap: "0.35rem", flexWrap: "wrap" }}>
+          <span>Minimum competitor confidence (0–1)</span>
+          <button
+            type="button"
+            className="field-help"
+            style={{ cursor: "help" }}
+            title={MIN_COMPETITOR_CONFIDENCE_HELP}
+            aria-label={MIN_COMPETITOR_CONFIDENCE_HELP}
+          >
+            <FieldHelpIcon />
+          </button>
+        </label>
         <input
           id="minc"
           type="number"
@@ -99,6 +131,7 @@ export function BulkNew() {
           step={0.05}
           value={minConf}
           onChange={(e) => setMinConf(parseFloat(e.target.value) || 0)}
+          title={MIN_COMPETITOR_CONFIDENCE_HELP}
         />
 
         <label htmlFor="mind">Min distinct competitor domains for gap inclusion</label>
@@ -107,8 +140,8 @@ export function BulkNew() {
           type="number"
           min={1}
           max={20}
-          value={minDomains}
-          onChange={(e) => setMinDomains(parseInt(e.target.value, 10) || 1)}
+          value={minDomainsText}
+          onChange={(e) => setMinDomainsText(e.target.value)}
         />
 
         <label htmlFor="block">Domain blocklist (one domain per line, e.g. amazon.com)</label>

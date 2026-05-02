@@ -237,3 +237,34 @@ pre.code-block {
 .preview-html table th, .preview-html table td {
   padding: 8px; border-bottom: 1px solid var(--border); text-align: left;
 }
+
+/* Inline help next to form labels (overrides default primary `button` chrome) */
+button.field-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  padding: 0;
+  margin: 0 0 0 2px;
+  flex-shrink: 0;
+  vertical-align: middle;
+  border-radius: 50%;
+  background: var(--panel-2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  font-weight: 500;
+}
+button.field-help:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--panel);
+}
+button.field-help:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+button.field-help svg {
+  display: block;
+}
