@@ -5,7 +5,7 @@ import { api, StyleGuideSummary } from "../api/client";
 export function NewRun() {
   const navigate = useNavigate();
   const [url, setUrl] = useState("");
-  const [nText, setNText] = useState("5");
+  const [nText, setNText] = useState("3");
   const [guideId, setGuideId] = useState<number | null>(null);
   const [guides, setGuides] = useState<StyleGuideSummary[]>([]);
   const [submitting, setSubmitting] = useState(false);

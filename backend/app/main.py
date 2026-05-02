@@ -5,7 +5,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import batches, checkpoints, events, runs, style_guide
+from app.api import admin_reporting, batches, checkpoints, events, runs, style_guide
 from app.config import get_settings
 from app.models.db import init_db
 
@@ -43,3 +43,4 @@ app.include_router(runs.router, prefix="/runs", tags=["runs"])
 app.include_router(checkpoints.router, prefix="/runs", tags=["checkpoints"])
 app.include_router(events.router, prefix="/runs", tags=["events"])
 app.include_router(style_guide.router, prefix="/style-guides", tags=["style-guides"])
+app.include_router(admin_reporting.router, prefix="/admin", tags=["admin"])

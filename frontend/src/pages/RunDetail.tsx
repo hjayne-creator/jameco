@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, RunDetail as RunDetailType } from "../api/client";
 import { useRunStream } from "../hooks/useRunStream";
@@ -96,6 +96,42 @@ export function RunDetail() {
         <div className="card" style={{ borderColor: "var(--bad)" }}>
           <strong style={{ color: "var(--bad)" }}>Error:</strong>
           <pre className="code-block">{data.error}</pre>
+        </div>
+      )}
+
+      {!!data.llm_usage && data.llm_usage.events > 0 && (
+        <div className="card">
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <h3 style={{ margin: 0 }}>LLM Cost</h3>
+            <div className="small muted">
+              {data.llm_usage.events} events | {data.llm_usage.total_tokens} tokens | $
+              {data.llm_usage.total_cost_usd.toFixed(4)}
+            </div>
+          </div>
+          <div className="admin-table" style={{ gridTemplateColumns: "70px 1fr 90px 1fr 80px 110px 110px 110px 120px", marginTop: 12 }}>
+            <div className="admin-head">Step</div>
+            <div className="admin-head">Step Name</div>
+            <div className="admin-head">Provider</div>
+            <div className="admin-head">Model</div>
+            <div className="admin-head">Events</div>
+            <div className="admin-head">Input</div>
+            <div className="admin-head">Output</div>
+            <div className="admin-head">Total</div>
+            <div className="admin-head">Cost (USD)</div>
+            {data.llm_usage.by_step.map((row, idx) => (
+              <Fragment key={`${row.step_no ?? "na"}-${row.provider}-${row.model}-${idx}`}>
+                <div>{row.step_no ?? "-"}</div>
+                <div>{row.step_name ?? "-"}</div>
+                <div>{row.provider}</div>
+                <div className="mono">{row.model}</div>
+                <div>{row.events}</div>
+                <div>{row.input_tokens}</div>
+                <div>{row.output_tokens}</div>
+                <div>{row.total_tokens}</div>
+                <div>${row.total_cost_usd.toFixed(4)}</div>
+              </Fragment>
+            ))}
+          </div>
         </div>
       )}
 

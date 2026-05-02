@@ -7,11 +7,11 @@ import json
 from urllib.parse import urlparse, urlunparse
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from sqlmodel import Session, select
 
 from app.config import get_settings
-from app.models.db import Batch, Run, Source, StepResult, get_engine
+from app.models.db import Batch, LLMUsageEvent, Run, Source, StepResult, get_engine
 from app.models.schemas import CreateBatchRequest
 from app.workflow.registry import STEPS
 from app.workflow.bulk_worker import (
@@ -116,6 +116,19 @@ def list_batches(session: Session = Depends(get_session)) -> list[dict]:
     out: list[dict] = []
     for b in batches:
         runs = session.exec(select(Run).where(Run.batch_id == b.id)).all()
+        run_ids = [r.id for r in runs if r.id is not None]
+        usage_totals = (0, 0.0)
+        if run_ids:
+            usage_row = session.exec(
+                select(
+                    func.sum(LLMUsageEvent.total_tokens).label("total_tokens"),
+                    func.sum(LLMUsageEvent.total_cost_usd).label("total_cost_usd"),
+                ).where(LLMUsageEvent.run_id.in_(run_ids))
+            ).one()
+            usage_totals = (
+                int(usage_row.total_tokens or 0),
+                float(usage_row.total_cost_usd or 0.0),
+            )
         total = len(runs)
         finished = sum(1 for r in runs if r.status in ("done", "skipped", "failed"))
         out.append(
@@ -128,6 +141,8 @@ def list_batches(session: Session = Depends(get_session)) -> list[dict]:
                 "error": b.error,
                 "created_at": b.created_at.isoformat(),
                 "updated_at": b.updated_at.isoformat(),
+                "llm_total_tokens": usage_totals[0],
+                "llm_total_cost_usd": usage_totals[1],
             }
         )
     return out
@@ -160,6 +175,28 @@ def get_batch(batch_id: int, session: Session = Depends(get_session)) -> dict:
     runs = session.exec(
         select(Run).where(Run.batch_id == batch_id).order_by(Run.batch_index)
     ).all()
+    run_ids = [r.id for r in runs if r.id is not None]
+    usage_by_run: dict[int, tuple[int, float]] = {}
+    batch_usage_totals = (0, 0.0)
+    if run_ids:
+        usage_rows = session.exec(
+            select(
+                LLMUsageEvent.run_id,
+                func.sum(LLMUsageEvent.total_tokens).label("total_tokens"),
+                func.sum(LLMUsageEvent.total_cost_usd).label("total_cost_usd"),
+            )
+            .where(LLMUsageEvent.run_id.in_(run_ids))
+            .group_by(LLMUsageEvent.run_id)
+        ).all()
+        usage_by_run = {
+            int(row.run_id): (int(row.total_tokens or 0), float(row.total_cost_usd or 0.0))
+            for row in usage_rows
+            if row.run_id is not None
+        }
+        batch_usage_totals = (
+            sum(tokens for tokens, _ in usage_by_run.values()),
+            sum(cost for _, cost in usage_by_run.values()),
+        )
     total = len(runs)
     finished = sum(1 for r in runs if r.status in ("done", "skipped", "failed"))
     return {
@@ -173,6 +210,8 @@ def get_batch(batch_id: int, session: Session = Depends(get_session)) -> dict:
         "progress_percent": round(100 * finished / total, 1) if total else 0.0,
         "created_at": batch.created_at.isoformat(),
         "updated_at": batch.updated_at.isoformat(),
+        "llm_total_tokens": batch_usage_totals[0],
+        "llm_total_cost_usd": batch_usage_totals[1],
         "runs": [
             {
                 "id": r.id,
@@ -182,6 +221,8 @@ def get_batch(batch_id: int, session: Session = Depends(get_session)) -> dict:
                 "terminal_reason": r.terminal_reason,
                 "error": r.error,
                 "updated_at": r.updated_at.isoformat(),
+                "llm_total_tokens": usage_by_run.get(r.id or -1, (0, 0.0))[0],
+                "llm_total_cost_usd": usage_by_run.get(r.id or -1, (0, 0.0))[1],
             }
             for r in runs
         ],

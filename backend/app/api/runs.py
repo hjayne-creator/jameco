@@ -5,10 +5,10 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from sqlmodel import Session, select
 
-from app.models.db import Run, Source, StepResult, get_engine
+from app.models.db import LLMUsageEvent, Run, Source, StepResult, get_engine
 from app.models.schemas import CreateRunRequest
 from app.workflow.orchestrator import start_run
 
@@ -41,6 +41,23 @@ def list_runs(session: Session = Depends(get_session)) -> list[dict]:
     runs = session.exec(
         select(Run).where(Run.batch_id.is_(None)).order_by(desc(Run.id))
     ).all()
+    run_ids = [r.id for r in runs if r.id is not None]
+    usage_by_run: dict[int, tuple[int, float]] = {}
+    if run_ids:
+        usage_rows = session.exec(
+            select(
+                LLMUsageEvent.run_id,
+                func.sum(LLMUsageEvent.total_tokens).label("total_tokens"),
+                func.sum(LLMUsageEvent.total_cost_usd).label("total_cost_usd"),
+            )
+            .where(LLMUsageEvent.run_id.in_(run_ids))
+            .group_by(LLMUsageEvent.run_id)
+        ).all()
+        usage_by_run = {
+            int(row.run_id): (int(row.total_tokens or 0), float(row.total_cost_usd or 0.0))
+            for row in usage_rows
+            if row.run_id is not None
+        }
     return [
         {
             "id": r.id,
@@ -51,6 +68,8 @@ def list_runs(session: Session = Depends(get_session)) -> list[dict]:
             "created_at": r.created_at.isoformat(),
             "updated_at": r.updated_at.isoformat(),
             "error": r.error,
+            "llm_total_tokens": usage_by_run.get(r.id or -1, (0, 0.0))[0],
+            "llm_total_cost_usd": usage_by_run.get(r.id or -1, (0, 0.0))[1],
         }
         for r in runs
     ]
@@ -63,6 +82,35 @@ def _serialize_run(session: Session, run: Run) -> dict[str, Any]:
     sources = session.exec(
         select(Source).where(Source.run_id == run.id).order_by(Source.id)
     ).all()
+    usage_rows = session.exec(
+        select(
+            LLMUsageEvent.step_no,
+            LLMUsageEvent.step_name,
+            LLMUsageEvent.provider,
+            LLMUsageEvent.model,
+            func.count(LLMUsageEvent.id).label("events"),
+            func.sum(LLMUsageEvent.total_tokens).label("total_tokens"),
+            func.sum(LLMUsageEvent.input_tokens).label("input_tokens"),
+            func.sum(LLMUsageEvent.output_tokens).label("output_tokens"),
+            func.sum(LLMUsageEvent.total_cost_usd).label("total_cost_usd"),
+        )
+        .where(LLMUsageEvent.run_id == run.id)
+        .group_by(
+            LLMUsageEvent.step_no,
+            LLMUsageEvent.step_name,
+            LLMUsageEvent.provider,
+            LLMUsageEvent.model,
+        )
+        .order_by(LLMUsageEvent.step_no, LLMUsageEvent.provider, LLMUsageEvent.model)
+    ).all()
+    usage_overview = session.exec(
+        select(
+            func.count(LLMUsageEvent.id).label("events"),
+            func.sum(LLMUsageEvent.total_tokens).label("total_tokens"),
+            func.sum(LLMUsageEvent.total_cost_usd).label("total_cost_usd"),
+        )
+        .where(LLMUsageEvent.run_id == run.id)
+    ).one()
     return {
         "id": run.id,
         "subject_url": run.subject_url,
@@ -101,6 +149,25 @@ def _serialize_run(session: Session, run: Run) -> dict[str, Any]:
             }
             for s in sources
         ],
+        "llm_usage": {
+            "events": int(usage_overview.events or 0),
+            "total_tokens": int(usage_overview.total_tokens or 0),
+            "total_cost_usd": float(usage_overview.total_cost_usd or 0.0),
+            "by_step": [
+                {
+                    "step_no": row.step_no,
+                    "step_name": row.step_name,
+                    "provider": row.provider,
+                    "model": row.model,
+                    "events": int(row.events or 0),
+                    "input_tokens": int(row.input_tokens or 0),
+                    "output_tokens": int(row.output_tokens or 0),
+                    "total_tokens": int(row.total_tokens or 0),
+                    "total_cost_usd": float(row.total_cost_usd or 0.0),
+                }
+                for row in usage_rows
+            ],
+        },
     }
 
 

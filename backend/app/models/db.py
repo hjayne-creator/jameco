@@ -76,6 +76,47 @@ class Source(SQLModel, table=True):
     notes: Optional[str] = None
 
 
+class LLMPriceCard(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    provider: str = Field(index=True)
+    model: str = Field(index=True)
+    input_per_million_usd: float = 0.0
+    output_per_million_usd: float = 0.0
+    cached_input_per_million_usd: float = 0.0
+    reasoning_per_million_usd: float = 0.0
+    effective_from: datetime = Field(default_factory=_now, index=True)
+    effective_to: Optional[datetime] = Field(default=None, index=True)
+    active: bool = Field(default=True, index=True)
+    notes: Optional[str] = None
+
+
+class LLMUsageEvent(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    provider: str = Field(index=True)
+    model: str = Field(index=True)
+    run_id: Optional[int] = Field(default=None, foreign_key="run.id", index=True)
+    step_no: Optional[int] = Field(default=None, index=True)
+    step_name: Optional[str] = None
+    request_kind: str = Field(default="text", index=True)
+    status: str = Field(default="success", index=True)
+    attempt_number: int = 1
+    provider_request_id: Optional[str] = Field(default=None, index=True)
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cached_input_tokens: int = 0
+    reasoning_tokens: int = 0
+    total_tokens: int = 0
+    latency_ms: Optional[int] = None
+    input_cost_usd: float = 0.0
+    output_cost_usd: float = 0.0
+    cached_input_cost_usd: float = 0.0
+    reasoning_cost_usd: float = 0.0
+    total_cost_usd: float = 0.0
+    pricing_version: str = "none"
+    error: Optional[str] = None
+    created_at: datetime = Field(default_factory=_now, index=True)
+
+
 _engine = None
 
 

@@ -23,6 +23,7 @@ from app.models.schemas import (
     ManufacturerVerification,
     SubjectExtract,
 )
+from app.observability.llm_usage import llm_call_context
 from app.workflow.pipeline_lock import get_pipeline_lock
 from app.workflow.registry import CHECKPOINT_AFTER_STEP, STEPS, StepDefinition, step_by_checkpoint
 from app.workflow.state import RunState
@@ -273,7 +274,8 @@ async def _execute_step(run_id: int, state: RunState, step_def: StepDefinition) 
             _save_run(session, run)
 
     try:
-        result = await func(state, run_id=run_id)
+        with llm_call_context(run_id=run_id, step_no=step_def.step_no, step_name=step_def.name):
+            result = await func(state, run_id=run_id)
         duration_ms = int((time.monotonic() - started) * 1000)
         output_payload = _serialize(result)
         _apply_step_output(state, step_def.step_no, result)

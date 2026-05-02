@@ -24,6 +24,8 @@ export interface RunSummary {
   created_at: string;
   updated_at: string;
   error: string | null;
+  llm_total_tokens?: number;
+  llm_total_cost_usd?: number;
 }
 
 export interface BulkOptionsPayload {
@@ -44,6 +46,8 @@ export interface BatchSummary {
   error?: string | null;
   created_at: string;
   updated_at: string;
+  llm_total_tokens?: number;
+  llm_total_cost_usd?: number;
 }
 
 export interface BatchRunRow {
@@ -54,6 +58,8 @@ export interface BatchRunRow {
   terminal_reason: string | null;
   error: string | null;
   updated_at: string;
+  llm_total_tokens?: number;
+  llm_total_cost_usd?: number;
 }
 
 export interface BatchDetail extends BatchSummary {
@@ -108,6 +114,22 @@ export interface RunDetail extends RunSummary {
   /** Present when this run was created as part of a bulk batch. */
   batch_id?: number | null;
   terminal_reason?: string | null;
+  llm_usage?: {
+    events: number;
+    total_tokens: number;
+    total_cost_usd: number;
+    by_step: Array<{
+      step_no: number | null;
+      step_name: string | null;
+      provider: string;
+      model: string;
+      events: number;
+      input_tokens: number;
+      output_tokens: number;
+      total_tokens: number;
+      total_cost_usd: number;
+    }>;
+  };
 }
 
 export interface StyleGuideSummary {
@@ -115,6 +137,40 @@ export interface StyleGuideSummary {
   name: string;
   length: number;
   created_at: string;
+}
+
+export interface PriceCard {
+  id: number;
+  provider: string;
+  model: string;
+  input_per_million_usd: number;
+  output_per_million_usd: number;
+  cached_input_per_million_usd: number;
+  reasoning_per_million_usd: number;
+  effective_from: string | null;
+  effective_to: string | null;
+  active: boolean;
+  notes: string | null;
+}
+
+export interface DailyUsageSummary {
+  day: string;
+  provider: string;
+  model: string;
+  events: number;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  total_cost_usd: number;
+}
+
+export interface RunUsageSummary {
+  run_id: number | null;
+  subject_url: string | null;
+  events: number;
+  total_tokens: number;
+  total_cost_usd: number;
+  last_event_at: string | null;
 }
 
 export const api = {
@@ -166,4 +222,34 @@ export const api = {
 
   /** Opens CSV download in a new tab (same-origin cookie-free GET). */
   batchCsvDownloadUrl: (id: number) => `${API_BASE}/batches/${id}/export.csv`,
+
+  listPriceCards: () => request<PriceCard[]>("/admin/pricing"),
+  upsertPriceCard: (payload: {
+    id?: number;
+    provider: string;
+    model: string;
+    input_per_million_usd: number;
+    output_per_million_usd: number;
+    cached_input_per_million_usd?: number;
+    reasoning_per_million_usd?: number;
+    active?: boolean;
+    notes?: string | null;
+    effective_from?: string;
+    effective_to?: string | null;
+  }) =>
+    request<{
+      id: number;
+      provider: string;
+      model: string;
+      active: boolean;
+      effective_from: string | null;
+      effective_to: string | null;
+    }>("/admin/pricing", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  getDailyUsageSummary: (days: number) =>
+    request<DailyUsageSummary[]>(`/admin/usage/summary/daily?days=${encodeURIComponent(days)}`),
+  getRunUsageSummary: (limit = 100) =>
+    request<RunUsageSummary[]>(`/admin/usage/summary/runs?limit=${encodeURIComponent(limit)}`),
 };

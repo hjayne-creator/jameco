@@ -40,7 +40,7 @@ export function BulkJobs() {
               to={`/bulk/${b.id}`}
               style={{
                 display: "grid",
-                gridTemplateColumns: "70px minmax(220px,1.4fr) 1fr 120px 140px 160px",
+                gridTemplateColumns: "70px minmax(220px,1.4fr) 1fr 120px 120px 140px 160px",
                 gap: 12,
                 padding: "12px 16px",
                 color: "var(--text)",
@@ -53,6 +53,7 @@ export function BulkJobs() {
                 {b.finished_urls} / {b.total_urls} URLs
               </span>
               <StatusPill status={b.status} />
+              <span className="small muted">${(b.llm_total_cost_usd ?? 0).toFixed(4)}</span>
               <span className="small muted">
                 {b.total_urls ? `${Math.round((100 * b.finished_urls) / b.total_urls)}%` : "—"}
               </span>

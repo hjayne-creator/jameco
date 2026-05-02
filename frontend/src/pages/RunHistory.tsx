@@ -28,7 +28,7 @@ export function RunHistory() {
             key={r.id}
             style={{
               display: "grid",
-              gridTemplateColumns: "60px 1fr 130px 60px 160px",
+              gridTemplateColumns: "60px 1fr 130px 90px 110px 160px",
               gap: 12,
               padding: "12px 16px",
               borderBottom: "1px solid var(--border)",
@@ -40,6 +40,9 @@ export function RunHistory() {
             <span className="mono small">{r.subject_url}</span>
             <StatusPill status={r.status} />
             <span className="small muted">step {r.current_step}/10</span>
+            <span className="small muted">
+              ${(r.llm_total_cost_usd ?? 0).toFixed(4)}
+            </span>
             <span className="small muted">{new Date(r.updated_at).toLocaleString()}</span>
           </Link>
         ))}

@@ -15,6 +15,7 @@ from tenacity import (
 )
 
 from app.config import get_settings
+from app.observability.llm_usage import log_llm_usage_event, monotonic_ms
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,7 @@ class ClaudeClient:
         user: str,
         temperature: float = 0.2,
         max_tokens: int = 4096,
+        request_kind: str = "text",
     ) -> str:
         client = self._client_or_raise()
         async for attempt in AsyncRetrying(
@@ -58,12 +60,35 @@ class ClaudeClient:
             reraise=True,
         ):
             with attempt:
-                response = await client.messages.create(
+                started_at_ms = monotonic_ms()
+                attempt_number = attempt.retry_state.attempt_number
+                try:
+                    response = await client.messages.create(
+                        model=model,
+                        system=system,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        messages=[{"role": "user", "content": user}],
+                    )
+                except Exception as exc:
+                    log_llm_usage_event(
+                        provider="anthropic",
+                        model=model,
+                        request_kind=request_kind,
+                        status="error",
+                        attempt_number=attempt_number,
+                        started_at_ms=started_at_ms,
+                        error=f"{type(exc).__name__}: {exc}",
+                    )
+                    raise
+                log_llm_usage_event(
+                    provider="anthropic",
                     model=model,
-                    system=system,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    messages=[{"role": "user", "content": user}],
+                    request_kind=request_kind,
+                    status="success",
+                    attempt_number=attempt_number,
+                    started_at_ms=started_at_ms,
+                    response=response,
                 )
                 parts = []
                 for block in response.content:
@@ -99,6 +124,7 @@ class ClaudeClient:
                 user=request_user,
                 temperature=temperature,
                 max_tokens=token_budget,
+                request_kind="json",
             )
             cleaned = _strip_json_fences(text)
             try:
@@ -151,6 +177,7 @@ class ClaudeClient:
             user=repair_user,
             temperature=0.0,
             max_tokens=max_tokens,
+            request_kind="json_repair",
         )
         cleaned_repaired = _strip_json_fences(repaired)
         try:

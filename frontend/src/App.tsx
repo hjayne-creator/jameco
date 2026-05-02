@@ -2,6 +2,7 @@ import { NavLink, Route, Routes, Navigate } from "react-router-dom";
 import { BulkJobDetail } from "./pages/BulkJobDetail";
 import { BulkJobs } from "./pages/BulkJobs";
 import { BulkNew } from "./pages/BulkNew";
+import { AdminCosts } from "./pages/AdminCosts";
 import { NewRun } from "./pages/NewRun";
 import { RunDetail } from "./pages/RunDetail";
 import { RunHistory } from "./pages/RunHistory";
@@ -25,6 +26,9 @@ export default function App() {
           <NavLink to="/bulk" className={({ isActive }) => (isActive ? "active" : "")}>
             Bulk jobs
           </NavLink>
+          <NavLink to="/admin/costs" className={({ isActive }) => (isActive ? "active" : "")}>
+            Cost Admin
+          </NavLink>
         </nav>
       </aside>
       <main className="main">
@@ -37,6 +41,7 @@ export default function App() {
           <Route path="/bulk" element={<BulkJobs />} />
           <Route path="/bulk/new" element={<BulkNew />} />
           <Route path="/bulk/:id" element={<BulkJobDetail />} />
+          <Route path="/admin/costs" element={<AdminCosts />} />
         </Routes>
       </main>
     </div>

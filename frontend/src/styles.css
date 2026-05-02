@@ -42,6 +42,7 @@ button.secondary, .btn.secondary {
   border: 1px solid var(--border);
 }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
+input[type="checkbox"] { width: auto; }
 
 input, textarea, select {
   background: var(--panel-2);
@@ -267,4 +268,25 @@ button.field-help:focus-visible {
 }
 button.field-help svg {
   display: block;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.admin-table {
+  display: grid;
+  grid-template-columns: 100px 1fr 100px 100px 100px 100px 80px;
+  gap: 8px 12px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.admin-head {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }

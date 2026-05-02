@@ -15,6 +15,7 @@ from tenacity import (
 )
 
 from app.config import get_settings
+from app.observability.llm_usage import log_llm_usage_event, monotonic_ms
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,8 @@ class OpenAIClient:
             reraise=True,
         ):
             with attempt:
+                started_at_ms = monotonic_ms()
+                attempt_number = attempt.retry_state.attempt_number
                 request: dict[str, Any] = {
                     "model": model,
                     "max_completion_tokens": max_tokens,
@@ -73,7 +76,28 @@ class OpenAIClient:
                         {"role": "user", "content": user},
                     ],
                 }
-                response = await client.chat.completions.create(**request)
+                try:
+                    response = await client.chat.completions.create(**request)
+                except Exception as exc:
+                    log_llm_usage_event(
+                        provider="openai",
+                        model=model,
+                        request_kind="text",
+                        status="error",
+                        attempt_number=attempt_number,
+                        started_at_ms=started_at_ms,
+                        error=f"{type(exc).__name__}: {exc}",
+                    )
+                    raise
+                log_llm_usage_event(
+                    provider="openai",
+                    model=model,
+                    request_kind="text",
+                    status="success",
+                    attempt_number=attempt_number,
+                    started_at_ms=started_at_ms,
+                    response=response,
+                )
                 return response.choices[0].message.content or ""
         raise OpenAIClientError("OpenAI text completion exhausted retries")
 
@@ -104,6 +128,8 @@ class OpenAIClient:
             reraise=True,
         ):
             with attempt:
+                started_at_ms = monotonic_ms()
+                attempt_number = attempt.retry_state.attempt_number
                 request: dict[str, Any] = {
                     "model": model,
                     "max_completion_tokens": max_tokens,
@@ -128,7 +154,36 @@ class OpenAIClient:
                             request.pop("response_format", None)
                             response = await client.chat.completions.create(**request)
                         else:
+                            log_llm_usage_event(
+                                provider="openai",
+                                model=model,
+                                request_kind="json",
+                                status="error",
+                                attempt_number=attempt_number,
+                                started_at_ms=started_at_ms,
+                                error=f"{type(exc2).__name__}: {exc2}",
+                            )
                             raise
+                except Exception as exc:
+                    log_llm_usage_event(
+                        provider="openai",
+                        model=model,
+                        request_kind="json",
+                        status="error",
+                        attempt_number=attempt_number,
+                        started_at_ms=started_at_ms,
+                        error=f"{type(exc).__name__}: {exc}",
+                    )
+                    raise
+                log_llm_usage_event(
+                    provider="openai",
+                    model=model,
+                    request_kind="json",
+                    status="success",
+                    attempt_number=attempt_number,
+                    started_at_ms=started_at_ms,
+                    response=response,
+                )
                 raw = response.choices[0].message.content or "{}"
                 try:
                     data: Any = json.loads(raw)

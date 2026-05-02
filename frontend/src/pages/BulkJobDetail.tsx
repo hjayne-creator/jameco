@@ -48,6 +48,9 @@ export function BulkJobDetail() {
           <p className="muted" style={{ marginTop: 8 }}>
             Processing {data.finished_urls} of {data.total_urls} ({pct}%)
           </p>
+          <p className="small muted" style={{ marginTop: 6, marginBottom: 0 }}>
+            LLM cost: ${(data.llm_total_cost_usd ?? 0).toFixed(4)} ({data.llm_total_tokens ?? 0} tokens)
+          </p>
         </div>
         <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
           <StatusPill status={data.status} />
@@ -114,7 +117,7 @@ export function BulkJobDetail() {
                 key={r.id}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "56px 1fr 100px 100px 160px",
+                  gridTemplateColumns: "56px 1fr 100px 100px 110px 160px",
                   gap: 10,
                   padding: "10px 14px",
                   borderBottom: "1px solid var(--border)",
@@ -129,6 +132,7 @@ export function BulkJobDetail() {
                 </span>
                 <StatusPill status={r.status} />
                 <span className="small muted">{r.terminal_reason || "—"}</span>
+                <span className="small muted">${(r.llm_total_cost_usd ?? 0).toFixed(4)}</span>
                 <span className="small muted">{new Date(r.updated_at).toLocaleString()}</span>
               </div>
             ))}
