@@ -25,23 +25,43 @@ def _domain(url: str) -> str:
         return ""
 
 
-def _enforce_inclusion_rules(rows: list[GapRow]) -> list[GapRow]:
+def _distinct_competitor_domain_count(row: GapRow) -> int:
+    unique_domains = {_domain(u) for u in row.competitor_sources if u}
+    unique_domains.discard("")
+    return len(unique_domains)
+
+
+def _enforce_inclusion_rules(rows: list[GapRow], min_distinct: int = 2) -> list[GapRow]:
     enforced: list[GapRow] = []
     for row in rows:
-        unique_domains = {_domain(u) for u in row.competitor_sources if u}
-        unique_domains.discard("")
-        true_count = len(unique_domains)
+        true_count = _distinct_competitor_domain_count(row)
         if row.competitor_count != true_count:
             row.competitor_count = true_count
-        allowed = row.manufacturer_verified or true_count >= 2
+        allowed = row.manufacturer_verified or true_count >= min_distinct
         if not allowed:
             row.included = False
             row.reason = (
                 row.reason
-                + " | Auto-excluded: not manufacturer-verified and fewer than 2 distinct competitor domains."
+                + f" | Auto-excluded: not manufacturer-verified and fewer than {min_distinct} distinct competitor domains."
             )
         enforced.append(row)
     return enforced
+
+
+def finalize_gap_row_inclusion(rows: list[GapRow], min_distinct: int) -> list[GapRow]:
+    """Set `included` from eligibility only (eligible rows become true)."""
+    for row in rows:
+        true_count = _distinct_competitor_domain_count(row)
+        if row.competitor_count != true_count:
+            row.competitor_count = true_count
+        allowed = row.manufacturer_verified or true_count >= min_distinct
+        row.included = bool(allowed)
+        if not allowed and "Auto-excluded" not in row.reason:
+            row.reason = (
+                row.reason
+                + f" | Auto-excluded: not manufacturer-verified and fewer than {min_distinct} distinct competitor domains."
+            )
+    return rows
 
 
 async def run(state: RunState, *, run_id: int) -> GapValidation:
@@ -65,5 +85,8 @@ async def run(state: RunState, *, run_id: int) -> GapValidation:
     raw = await call_json(
         cfg, system=PROMPT, user=user, schema=GapValidation, max_tokens=8000
     )
-    raw.rows = _enforce_inclusion_rules(raw.rows)
+    min_d = getattr(state, "gap_min_distinct_domains", None) or 2
+    raw.rows = _enforce_inclusion_rules(raw.rows, min_distinct=min_d)
+    if getattr(state, "bulk_auto_gap_finalize", False):
+        raw.rows = finalize_gap_row_inclusion(raw.rows, min_distinct=min_d)
     return raw

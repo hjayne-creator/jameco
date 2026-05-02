@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { api, RunDetail as RunDetailType } from "../api/client";
 import { useRunStream } from "../hooks/useRunStream";
 import { StatusPill } from "../components/StatusPill";
@@ -9,6 +9,7 @@ import { GapTableEditor } from "../components/GapTableEditor";
 import { IdentityEditor } from "../components/IdentityEditor";
 import { CopyEditor } from "../components/CopyEditor";
 import { FinalOutputTabs } from "../components/FinalOutputTabs";
+import { formatWorkflowEventDescription } from "../utils/formatWorkflowEvent";
 
 const POLL_MS = 1500;
 
@@ -63,17 +64,33 @@ export function RunDetail() {
         <div className="row">
           <StatusPill status={data.status} />
           <button className="secondary" onClick={refresh}>Refresh</button>
-          <button
-            className="secondary"
-            onClick={async () => {
-              await api.restartRun(runId);
-              refresh();
-            }}
-          >
-            Restart
-          </button>
+          {data.batch_id == null && (
+            <button
+              className="secondary"
+              onClick={async () => {
+                await api.restartRun(runId);
+                refresh();
+              }}
+            >
+              Restart
+            </button>
+          )}
         </div>
       </div>
+
+      {data.batch_id != null && (
+        <p className="card small" style={{ marginTop: 12 }}>
+          This run is part of bulk batch{" "}
+          <Link to={`/bulk/${data.batch_id}`}>#{data.batch_id}</Link>. Checkpoints are auto-approved; progress
+          is tracked on the batch page.
+        </p>
+      )}
+
+      {data.terminal_reason && (
+        <p className="small muted" style={{ marginTop: 8 }}>
+          Terminal reason: <code>{data.terminal_reason}</code>
+        </p>
+      )}
 
       {data.error && (
         <div className="card" style={{ borderColor: "var(--bad)" }}>
@@ -91,8 +108,9 @@ export function RunDetail() {
             {events.length === 0 && <div className="line">(waiting for events)</div>}
             {events.map((e, i) => (
               <div key={i} className={e.type === "step.error" || e.type === "run.error" ? "line error" : "line"}>
-                {new Date(e.receivedAt).toLocaleTimeString()} {e.type}{" "}
-                {e.payload?.message ? `— ${e.payload.message}` : ""}
+                <span className="muted">{new Date(e.receivedAt).toLocaleTimeString()}</span>
+                {" — "}
+                {formatWorkflowEventDescription(e)}
               </div>
             ))}
           </div>

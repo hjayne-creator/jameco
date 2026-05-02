@@ -4,7 +4,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from sqlalchemy import JSON
+from sqlalchemy import JSON, text
+from sqlalchemy.engine import Engine
 from sqlmodel import Column, Field, SQLModel, create_engine
 
 from app.config import get_settings
@@ -21,6 +22,18 @@ class StyleGuide(SQLModel, table=True):
     created_at: datetime = Field(default_factory=_now)
 
 
+class Batch(SQLModel, table=True):
+    """Bulk PDP job: many runs, one options snapshot, FIFO queue execution."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: Optional[str] = None
+    status: str = "queued"  # queued | running | done | failed
+    options_snapshot: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    error: Optional[str] = None
+    created_at: datetime = Field(default_factory=_now)
+    updated_at: datetime = Field(default_factory=_now)
+
+
 class Run(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     subject_url: str
@@ -31,6 +44,9 @@ class Run(SQLModel, table=True):
     error: Optional[str] = None
     created_at: datetime = Field(default_factory=_now)
     updated_at: datetime = Field(default_factory=_now)
+    batch_id: Optional[int] = Field(default=None, foreign_key="batch.id", index=True)
+    batch_index: int = 0
+    terminal_reason: Optional[str] = None
 
 
 class StepResult(SQLModel, table=True):
@@ -72,5 +88,39 @@ def get_engine():
     return _engine
 
 
+def _migrate_sqlite_run_columns(engine: Engine) -> None:
+    if engine.dialect.name != "sqlite":
+        return
+    with engine.begin() as conn:
+        rows = conn.execute(text("PRAGMA table_info(run)")).fetchall()
+        col_names = {r[1] for r in rows}
+        if "batch_id" not in col_names:
+            conn.execute(text("ALTER TABLE run ADD COLUMN batch_id INTEGER"))
+        if "batch_index" not in col_names:
+            conn.execute(text("ALTER TABLE run ADD COLUMN batch_index INTEGER DEFAULT 0"))
+        if "terminal_reason" not in col_names:
+            conn.execute(text("ALTER TABLE run ADD COLUMN terminal_reason VARCHAR"))
+
+
+def _migrate_sqlite_batch_columns(engine: Engine) -> None:
+    if engine.dialect.name != "sqlite":
+        return
+    with engine.begin() as conn:
+        tables = conn.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='batch'")
+        ).fetchall()
+        if not tables:
+            return
+        rows = conn.execute(text("PRAGMA table_info(batch)")).fetchall()
+        col_names = {r[1] for r in rows}
+        if "error" not in col_names:
+            conn.execute(text("ALTER TABLE batch ADD COLUMN error VARCHAR"))
+        if "name" not in col_names:
+            conn.execute(text("ALTER TABLE batch ADD COLUMN name VARCHAR"))
+
+
 def init_db() -> None:
-    SQLModel.metadata.create_all(get_engine())
+    engine = get_engine()
+    SQLModel.metadata.create_all(engine)
+    _migrate_sqlite_run_columns(engine)
+    _migrate_sqlite_batch_columns(engine)

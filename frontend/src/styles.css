@@ -123,6 +123,11 @@ label { display: block; margin: 12px 0 4px; font-size: 13px; color: var(--muted)
 .status-pill.completed { color: var(--good); border-color: var(--good); }
 .status-pill.error { color: var(--bad); border-color: var(--bad); }
 .status-pill.awaiting { color: var(--warn); border-color: var(--warn); }
+.status-pill.skipped { color: var(--muted); border-color: var(--muted); }
+
+details.bulk-report-run summary::-webkit-details-marker {
+  display: none;
+}
 
 .step-rail {
   display: flex;

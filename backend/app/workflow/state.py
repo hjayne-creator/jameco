@@ -22,6 +22,10 @@ class RunState:
     subject_url: str
     n_competitors: int
     style_guide_text: str = ""
+    # Bulk-only: minimum distinct competitor domains for gap row inclusion (single-URL uses 2 via step6 default).
+    gap_min_distinct_domains: int = 2
+    # When True, step 6 sets included=true for every eligible gap row after enforcement (bulk auto-approve).
+    bulk_auto_gap_finalize: bool = False
 
     # Step outputs (populated as we go)
     subject_extract: Optional[SubjectExtract] = None

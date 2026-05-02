@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import desc
 from sqlmodel import Session, select
 
 from app.models.db import Run, Source, StepResult, get_engine
@@ -37,7 +38,9 @@ async def create_run(payload: CreateRunRequest, session: Session = Depends(get_s
 
 @router.get("")
 def list_runs(session: Session = Depends(get_session)) -> list[dict]:
-    runs = session.exec(select(Run).order_by(Run.id.desc())).all()
+    runs = session.exec(
+        select(Run).where(Run.batch_id.is_(None)).order_by(desc(Run.id))
+    ).all()
     return [
         {
             "id": r.id,
@@ -65,6 +68,8 @@ def _serialize_run(session: Session, run: Run) -> dict[str, Any]:
         "subject_url": run.subject_url,
         "n_competitors": run.n_competitors,
         "style_guide_id": run.style_guide_id,
+        "batch_id": run.batch_id,
+        "terminal_reason": run.terminal_reason,
         "status": run.status,
         "current_step": run.current_step,
         "error": run.error,
@@ -112,6 +117,8 @@ async def restart_run(run_id: int, session: Session = Depends(get_session)) -> d
     run = session.get(Run, run_id)
     if run is None:
         raise HTTPException(404, "Run not found")
+    if run.batch_id is not None:
+        raise HTTPException(400, "Bulk batch runs cannot be restarted from this endpoint")
     run.status = "pending"
     run.error = None
     run.updated_at = datetime.now(timezone.utc)

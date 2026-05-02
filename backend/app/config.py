@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     serpapi_country: str = "us"
     serpapi_language: str = "en"
 
+    bulk_max_urls_per_batch: int = Field(default=100, ge=1, le=5000)
+
     @property
     def cors_origin_list(self) -> List[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

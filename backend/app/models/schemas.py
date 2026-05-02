@@ -279,3 +279,19 @@ class CheckpointApproval(BaseModel):
     """Generic checkpoint payload. Body should match the checkpoint's schema."""
 
     edited_payload: dict
+
+
+class BulkOptions(BaseModel):
+    """Options for a bulk batch (mirrors run start + checkpoint policies)."""
+
+    n_competitors: int = Field(5, ge=1, le=20)
+    style_guide_id: Optional[int] = None
+    min_competitor_confidence: float = Field(0.35, ge=0.0, le=1.0)
+    domain_blocklist: list[str] = Field(default_factory=list)
+    min_distinct_competitor_domains: int = Field(2, ge=1, le=20)
+
+
+class CreateBatchRequest(BaseModel):
+    name: Optional[str] = Field(default=None, max_length=120)
+    urls: list[HttpUrl] = Field(..., min_length=1)
+    options: BulkOptions = Field(default_factory=BulkOptions)

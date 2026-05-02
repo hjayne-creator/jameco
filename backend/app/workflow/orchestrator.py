@@ -23,7 +23,8 @@ from app.models.schemas import (
     ManufacturerVerification,
     SubjectExtract,
 )
-from app.workflow.registry import CHECKPOINT_AFTER_STEP, STEPS, StepDefinition
+from app.workflow.pipeline_lock import get_pipeline_lock
+from app.workflow.registry import CHECKPOINT_AFTER_STEP, STEPS, StepDefinition, step_by_checkpoint
 from app.workflow.state import RunState
 from app.workflow.steps import (
     step1_extract,
@@ -167,6 +168,10 @@ def _serialize(payload: Any) -> dict:
 
 async def start_run(run_id: int) -> None:
     """Schedule a background task to run / resume the orchestrator."""
+    with Session(get_engine()) as session:
+        run = session.get(Run, run_id)
+        if run is not None and run.batch_id is not None:
+            return
     if run_id in _running_tasks and not _running_tasks[run_id].done():
         return
     task = asyncio.create_task(_run_loop(run_id), name=f"run-{run_id}")
@@ -206,11 +211,17 @@ async def _execute_run(run_id: int) -> None:
             await bus.publish(
                 run_id,
                 "step.skipped",
-                {"step_no": step_def.step_no, "name": step_def.name},
+                {
+                    "step_no": step_def.step_no,
+                    "name": step_def.name,
+                    "label": step_def.label,
+                },
             )
             continue
 
-        await _execute_step(run_id, state, step_def)
+        lock = get_pipeline_lock()
+        async with lock:
+            await _execute_step(run_id, state, step_def)
 
         if step_def.checkpoint:
             with Session(get_engine()) as session:
@@ -222,7 +233,11 @@ async def _execute_run(run_id: int) -> None:
             await bus.publish(
                 run_id,
                 "checkpoint.pause",
-                {"step_no": step_def.step_no, "name": step_def.checkpoint},
+                {
+                    "step_no": step_def.step_no,
+                    "name": step_def.checkpoint,
+                    "label": step_def.label,
+                },
             )
             return  # Wait for resume
 
@@ -279,6 +294,7 @@ async def _execute_step(run_id: int, state: RunState, step_def: StepDefinition) 
             {
                 "step_no": step_def.step_no,
                 "name": step_def.name,
+                "label": step_def.label,
                 "duration_ms": duration_ms,
             },
         )
@@ -301,6 +317,7 @@ async def _execute_step(run_id: int, state: RunState, step_def: StepDefinition) 
             {
                 "step_no": step_def.step_no,
                 "name": step_def.name,
+                "label": step_def.label,
                 "message": str(exc),
             },
         )
@@ -365,10 +382,11 @@ async def approve_checkpoint(run_id: int, checkpoint_name: str, edited_payload: 
         run.status = "running"
         _save_run(session, run)
 
+    ck_step = step_by_checkpoint(checkpoint_name)
     await bus.publish(
         run_id,
         "checkpoint.approved",
-        {"name": checkpoint_name, "step_no": step_no},
+        {"name": checkpoint_name, "step_no": step_no, "label": ck_step.label},
     )
 
     await start_run(run_id)

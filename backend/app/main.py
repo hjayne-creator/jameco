@@ -5,7 +5,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import checkpoints, events, runs, style_guide
+from app.api import batches, checkpoints, events, runs, style_guide
 from app.config import get_settings
 from app.models.db import init_db
 
@@ -25,8 +25,12 @@ app.add_middleware(
 
 
 @app.on_event("startup")
-def _startup() -> None:
+async def _startup() -> None:
     init_db()
+    from app.workflow.bulk_worker import repair_stuck_running_batches, start_bulk_worker
+
+    repair_stuck_running_batches()
+    await start_bulk_worker()
 
 
 @app.get("/health")
@@ -34,6 +38,7 @@ def health() -> dict:
     return {"ok": True}
 
 
+app.include_router(batches.router, prefix="/batches", tags=["batches"])
 app.include_router(runs.router, prefix="/runs", tags=["runs"])
 app.include_router(checkpoints.router, prefix="/runs", tags=["checkpoints"])
 app.include_router(events.router, prefix="/runs", tags=["events"])

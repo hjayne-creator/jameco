@@ -26,6 +26,42 @@ export interface RunSummary {
   error: string | null;
 }
 
+export interface BulkOptionsPayload {
+  n_competitors: number;
+  style_guide_id?: number | null;
+  min_competitor_confidence: number;
+  domain_blocklist: string[];
+  min_distinct_competitor_domains: number;
+}
+
+export interface BatchSummary {
+  id: number;
+  name?: string | null;
+  status: string;
+  total_urls: number;
+  finished_urls: number;
+  /** Batch-level summary when status is `failed` (or stuck runs). */
+  error?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BatchRunRow {
+  id: number;
+  subject_url: string;
+  status: string;
+  current_step: number;
+  terminal_reason: string | null;
+  error: string | null;
+  updated_at: string;
+}
+
+export interface BatchDetail extends BatchSummary {
+  options_snapshot: BulkOptionsPayload;
+  progress_percent: number;
+  runs: BatchRunRow[];
+}
+
 export interface StepRecord {
   id: number;
   step_no: number;
@@ -48,10 +84,30 @@ export interface SourceRecord {
   fetched_at: string;
 }
 
+/** Per-run rows from GET /batches/:id/report (steps 7–10 when present). */
+export interface BatchReportRun {
+  id: number;
+  subject_url: string;
+  status: string;
+  current_step: number;
+  terminal_reason: string | null;
+  error: string | null;
+  steps?: StepRecord[];
+  sources?: SourceRecord[];
+}
+
+export interface BatchReport {
+  batch_id: number;
+  runs: BatchReportRun[];
+}
+
 export interface RunDetail extends RunSummary {
   steps: StepRecord[];
   sources: SourceRecord[];
   style_guide_id: number | null;
+  /** Present when this run was created as part of a bulk batch. */
+  batch_id?: number | null;
+  terminal_reason?: string | null;
 }
 
 export interface StyleGuideSummary {
@@ -86,4 +142,28 @@ export const api = {
     }),
   deleteGuide: (id: number) =>
     request<{ ok: boolean }>(`/style-guides/${id}`, { method: "DELETE" }),
+
+  listBatches: () => request<BatchSummary[]>("/batches"),
+  getBatch: (id: number) => request<BatchDetail>(`/batches/${id}`),
+  getBatchReport: (id: number) => request<BatchReport>(`/batches/${id}/report`),
+  reconcileBatch: (id: number) =>
+    request<{ id: number; status: string; error: string | null }>(`/batches/${id}/reconcile`, { method: "POST" }),
+  createBatch: (payload: { name?: string; urls: string[]; options: Partial<BulkOptionsPayload> }) =>
+    request<{ id: number; status: string; name?: string | null; url_count: number; deduped_from: number }>("/batches", {
+      method: "POST",
+      body: JSON.stringify({
+        name: payload.name,
+        urls: payload.urls,
+        options: {
+          n_competitors: 5,
+          min_competitor_confidence: 0.35,
+          domain_blocklist: [],
+          min_distinct_competitor_domains: 2,
+          ...payload.options,
+        },
+      }),
+    }),
+
+  /** Opens CSV download in a new tab (same-origin cookie-free GET). */
+  batchCsvDownloadUrl: (id: number) => `${API_BASE}/batches/${id}/export.csv`,
 };
